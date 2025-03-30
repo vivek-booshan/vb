@@ -6,12 +6,12 @@ extern "C" {
 #endif
 
 #if defined(_WIN64) || defined(__x86_64__) || defined(_M_X64) || defined(__64BIT__) || defined(__powerpc64__) || defined(__ppc64__)
-        #ifndef GB_ARCH_64_BIT
-        #define GB_ARCH_64_BIT 1
+        #ifndef VB_ARCH_64_BIT
+        #define VB_ARCH_64_BIT 1
         #endif
 #else
-        #ifndef GB_ARCH_32_BIT
-        #define GB_ARCH_32_BIT 1
+        #ifndef VB_ARCH_32_BIT
+        #define VB_ARCH_32_BIT 1
         #endif
 #endif
 
@@ -52,19 +52,19 @@ extern "C" {
 #endif
 
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
-        #ifndef GB_CPU_X86
-        #define GB_CPU_X86 1
+        #ifndef VB_CPU_X86
+        #define VB_CPU_X86 1
         #endif
-        #ifndef GB_CACHE_LINE_SIZE
-        #define GB_CACHE_LINE_SIZE 64
+        #ifndef VB_CACHE_LINE_SIZE
+        #define VB_CACHE_LINE_SIZE 64
         #endif
 
 #elif defined(__arm__)
-        #ifndef GB_CPU_ARM
-        #define GB_CPU_ARM 1
+        #ifndef VB_CPU_ARM
+        #define VB_CPU_ARM 1
         #endif
-        #ifndef GB_CACHE_LINE_SIZE
-        #define GB_CACHE_LINE_SIZE 64
+        #ifndef VB_CACHE_LINE_SIZE
+        #define VB_CACHE_LINE_SIZE 64
         #endif
 
 #else
@@ -105,6 +105,8 @@ extern "C" {
 
 #if defined(VB_CPU_X86)
         #include <xmmintrin.h>
+#elif defined(VB_CPU_ARM)
+        #include <arm_neon.h>
 #endif
 
 #if defined(VB_SYS_OSX)
@@ -135,9 +137,16 @@ typedef int8_t   i8;
 typedef int16_t  i16;
 typedef int32_t  i32;
 typedef int64_t  i64;
-
 typedef float  f32;
 typedef double f64;
+
+#if defined(__GNUC__)
+        typedef u8 u8x16 __attribute__((vector_size(16)));
+        typedef u8 u32x4 __attribute__((vector_size(16)));
+        typedef i8 i8x16 __attribute__((vector_size(16)));
+        typedef i8 i32x4 __attribute__((vector_size(16)));
+        typedef f32 f32x4 __attribute__((vector_size(16)));
+#endif
 
 typedef size_t usize;
 typedef ptrdiff_t isize;
@@ -183,25 +192,60 @@ VB_STATIC_ASSERT(sizeof(usize) == sizeof(isize));
 #define F64_MIN 2.2250738585072014e-308
 #define F64_MAX 1.7976931348623157e+308
 
+#ifndef VB_MATH_CONSTANTS
+#define VB_MATH_CONSTANTS
+	#define    VB_FLOATERR   1.19209290e-7f
+	#define   VB_TWOTHIRDS   0.666666666666666666666666666666666666667f
+
+	#define          VB_PI   3.14159265358979323846264338327950288f
+	#define  VB_INVERSE_PI   0.318309886183790671537767526745028724f
+
+	#define         VB_TAU   6.28318530717958647692528676655900576f
+	#define VB_INVERSE_TAU   0.159154943091895335768883763372514362f
+	#define    VB_HALF_TAU   3.14159265358979323846264338327950288f
+	#define  VB_FOURTH_TAU   1.570796326794896619231321691639751442f
+	#define   VB_EIGHT_TAU   0.785398163397448309615660845819875721f
+
+	#define           VB_E   2.7182818284590452353602874713526625f
+	#define       VB_SQRT2   1.41421356237309504880168872420969808f
+	#define       VB_SQRT3   1.73205080756887729352744634150587236f
+	#define       VB_SQRT5   2.23606797749978969640917366873127623f
+
+	#define        VB_LOG2   0.693147180559945309417232121458176568f
+	#define       VB_LOG10   2.30258509299404568401799145468436421f
+#endif
+
 typedef union vbVec2 {
-	struct { float x, y; };
-	float e[2];
+	struct { f32 x, y; };
+  f32 e[2];
+#if defined(__GNUC__)
+  f32x4 v;
+  __m128 mm;
+#endif
 } vbVec2;
 
 typedef union vbVec3 {
-	struct { float x, y, z; };
-	struct { float r, g, b; };
+	struct { f32 x, y, z; };
+	struct { f32 r, g, b; };
 	// vbVec2 xy;
-	float e[3];
+	f32 e[3];
+#if defined(__GNUC__)
+  f32x4 v;
+  __m128 mm;
+#endif
 } vbVec3;
 
 typedef union vbVec4 {
-	struct { float x, y, z, w; };
-	struct { float r, g, b, a; };
+	struct { f32 x, y, z, w; };
+	struct { f32 r, g, b, a; };
 	// struct { vbVec2 xy, zw; };
 	// vbVec3 xyz;
 	// vbVec3 rgb;
-	float e[4];
+	f32 e[4];
+#if defined(__GNUC__)
+  f32x4 v;
+  __m128 mm;
+#endif
 } vbVec4;
 
 typedef union vbMat2 {
@@ -393,11 +437,167 @@ int main(void)
 #define vb_sign(x) ((x) >= 0 ? 1 : -1)
 #endif
 
+extern float vb_ceil(float x);
+extern float vb_floor(float x);
+extern float vb_round(float x);
+
 extern float vb_deg2rad(float degrees);
 extern float vb_rad2deg(float radians);
+extern float vb_remainder(float a, float b);
+extern float vb_mod(float a, float b);
 // interpolate between angles
 extern float vb_anglediff(float a_radians, float b_radians);
 
+// initialize
+extern vbVec2 vb_vec2init(float x, float y);
+// initialize
+extern vbVec3 vb_vec3init(float x, float y, float z);
+// initialize
+extern vbVec4 vb_vec4init(float x, float y, float z, float w);
+
+// initialize with zeroes
+extern vbVec2 vb_vec2initz(void);
+// initialize with zeroes
+extern vbVec3 vb_vec3initz(void);
+// initialize with zeroes
+extern vbVec4 vb_vec4initz(void);
+
+// initialize with vector
+extern vbVec2 vb_vec2initv(float x[2]);
+// initialize with vector
+extern vbVec3 vb_vec3initv(float x[3]);
+// initialize with vector
+extern vbVec4 vb_vec4initv(float x[4]);
+
+extern void vb_vec2add(vbVec2 *d, vbVec2 v0, vbVec2 v1);
+extern void vb_vec2sub(vbVec2 *d, vbVec2 v0, vbVec2 v1);
+extern void vb_vec2mul(vbVec2 *d, vbVec2 v,  float s);
+extern void vb_vec2div(vbVec2 *d, vbVec2 v,  float s);
+
+extern void vb_vec3add(vbVec3 *d, vbVec3 const *v0, vbVec3 const *v1);
+extern void vb_vec3sub(vbVec3 *d, vbVec3 v0, vbVec3 v1);
+extern void vb_vec3mul(vbVec3 *d, vbVec3 v,  float s);
+extern void vb_vec3div(vbVec3 *d, vbVec3 v,  float s);
+
+extern void vb_vec4add(vbVec4 *d, vbVec4 v0, vbVec4 v1);
+extern void vb_vec4sub(vbVec4 *d, vbVec4 v0, vbVec4 v1);
+extern void vb_vec4mul(vbVec4 *d, vbVec4 v,  float s);
+extern void vb_vec4div(vbVec4 *d, vbVec4 v,  float s);
+
+#if defined(VB_MATH_IMPLEMENTATION)
+#include <math.h>
+
+float vb_to_deg2rad(float degrees) { return degrees * VB_TAU / 360.0f; }
+float vb_to_rad2deg(float radians) { return radians * 360.0f / VB_TAU; }
+
+
+
+// literally only exist for angle_diff
+float vb_round(float x) { return (float)((x >= 0.0f) ? vb_floor(x + 0.5f) : vb_ceil(x - 0.5f)); }
+float vb_floor(float x) { return (float)((x >= 0.0f) ? (int)x : (int)(x-0.9999999999999999f)); }
+float vb_ceil(float x)  { return (float)((x < 0) ? (int)x : ((int)x)+1); }
+float vb_remainder(float x, float y) { return x - (vb_round(x/y)*y); }
+float vb_mod(float a, float b) {
+        float result = vb_remainder(vb_abs(a), vb_abs(b));
+        if (result < 0)
+                result += vb_abs(b);
+        return result;
+ }
+
+float vb_angle_diff(float radians_a, float radians_b)
+{
+        float delta = vb_mod(radians_b-radians_a, VB_TAU);
+        delta = vb_mod(delta + 1.5f*VB_TAU, VB_TAU);
+        delta -= 0.5f*VB_TAU;
+        return delta;
+}
+
+/*
+performs sqrt on a single f32 using simd instructions.
+I am honestly not too sure if this is faster than just using sqrt(x)
+so just use that ig
+*/
+float vb_sqrtf32(f32 x)
+{
+#ifdef VB_CPU_X86
+        return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
+#elif VB_CPU_ARM
+        return vsqrt_f32(x);
+        // vgetq_lane_f32(vsqrtq_f32(vdupq_n_f32(x)));
+#else
+        #error unsupported arch
+#endif
+}
+
+float vb_rsqrtf32(f32 x)
+{
+#ifdef VB_CPU_X86
+        return _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x)));
+#elif VB_CPU_ARM
+        return vrsqrte_f32(x);
+#else
+        #error unsupported arch
+#endif
+}
+
+/*
+simd addition on vec2
+*/
+void vb_vec2add(vbVec2 *dest, vbVec2 a, vbVec2 b)
+{
+    __m128 va = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&a);
+    __m128 vb = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&b);
+    __m128 vc = _mm_add_ps(va, vb);
+
+    _mm_storel_pi((__m64*)&dest, vc);
+}
+
+
+void vb_vec3add(vbVec3 *dest, vbVec3 const *a, vbVec3 const *b)
+{
+#if defined(__GNUC__)
+    dest->v = a->v + b->v;
+    // __m128 va = _mm_loadu_ps(&a.x);  // Loads 4 floats, but ignore last
+    // __m128 vb = _mm_loadu_ps(&b.x);
+    // __m128 vc = _mm_add_ps(va, vb);
+    // // vc = _mm_blend_ps(vc, _mm_setzero_ps(), 0b1000); // Zero out W
+
+    // _mm_storeu_ps(&dest->x, vc);
+#elif defined(__arm__)
+// TODO : test this out
+    float32x4_t vc = vaddq_f32(vld1q_f32(va), vld1q_f32(vb));
+    vc = vsetq_lane_f32(0, vc, 3); // Zero out W
+    vst1q_f32(result, vc);    
+#else
+        #error unsupported
+#endif
+}
+
+
+f32 reduce_f32x4(vbVec4 *a)
+{
+// #if defined(__GNUC__)
+        __m128 v = a->mm;
+        __m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
+        temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
+        return _mm_cvtss_f32(temp);  // Convert the result to a scalar
+// #elif defined(__arm__)
+//         f32x4 low = vadd_f32(vget_low_f32(a), vget_high_f32(a)); 
+//         return vget_lane_f32(low, 0) + vget_lane_f32(low, 1);
+// #else
+//         #error unsupported arch
+// #endif
+}
+
+f32 vb_dot4(vbVec4 a, vbVec4 b)
+{
+        f32x4 result = a.v * b.v;
+        return result[0] + result[1] + result[2] + result[3];
+}
+
+void vb_cross2(float *dest, vbVec2 a, vbVec2 b) { *dest = a.x*b.y - a.y*b.x; }
+
+#endif // VB_MATH_IMPLEMENTATION
 
 #if defined(__cplusplus)
 }
