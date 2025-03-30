@@ -37,7 +37,7 @@ extern "C" {
         #define VB_SYS_OSX 1
         #endif
 #else
-        #error you're on windows or some jank system \
+        #error you are on windows or some jank system \
         and i could not be bothered supporting either
 #endif
 
@@ -246,12 +246,41 @@ typedef struct {
 } foo
 
 printf("%zd\n", offsetof(foo, a)) // 0
-printf("%zd\n", offsetof(foo, b)) // 1
-printf("%zd\n", offsetof(foo, c)) // 5
+printf("%zd\n", offsetof(foo, b)) // 4
+printf("%zd\n", offsetof(foo, c)) // 8
 ```
 */
 #ifndef offsetof
 #define offsetof(Type, element) ((isize)&(((Type *)0)->element))
+#endif
+
+/*
+By setting a struct with a 1 byte character, correctly retrieve the alignment of the type 
+```
+alignof(i8) // 1
+alignof(i32) // 4
+```
+*/
+#ifndef alignof
+        #define alignof(Type) offsetof(struct { char c; Type member; }, member)
+#endif
+
+#ifndef VB_GLOBAL
+#define VB_GLOBAL
+#define global static
+// continue to persist within function scope,
+// useful for something like counting the number
+// of times a function is called
+#define persistent static
+#endif
+
+
+#ifndef vb_unused
+#if defined(__GNUC__)
+        #define vb_unused(x) __attribute__((__unused__))(x)
+#else
+        #define vb_unused(x) ((void)(isizeof(x)))
+#endif
 #endif
 
 #if defined(__cplusplus)
