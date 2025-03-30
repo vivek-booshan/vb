@@ -218,10 +218,10 @@ VB_STATIC_ASSERT(sizeof(usize) == sizeof(isize));
 typedef union vbVec2 {
 	struct { f32 x, y; };
   f32 e[2];
-#if defined(__GNUC__)
-  f32x4 v;
-  __m128 mm;
-#endif
+// #if defined(__GNUC__)
+//   f32x4 v;
+//   __m128 mm;
+// #endif
 } vbVec2;
 
 typedef union vbVec3 {
@@ -229,10 +229,10 @@ typedef union vbVec3 {
 	struct { f32 r, g, b; };
 	// vbVec2 xy;
 	f32 e[3];
-#if defined(__GNUC__)
-  f32x4 v;
-  __m128 mm;
-#endif
+// #if defined(__GNUC__)
+//   f32x4 v;
+//   __m128 mm;
+// #endif
 } vbVec3;
 
 typedef union vbVec4 {
@@ -285,7 +285,7 @@ typedef union vbMat4 {
 #endif
 
 #ifndef cast
-#define cast(Type) (Type)
+#define cast(Type, Value) ((Type)(Value))
 #endif
 
 /*
@@ -553,28 +553,28 @@ void vb_vec2add(vbVec2 *dest, vbVec2 a, vbVec2 b)
 }
 
 
-void vb_vec3add(vbVec3 *dest, vbVec3 const *a, vbVec3 const *b)
-{
-#if defined(__GNUC__)
-    dest->v = a->v + b->v;
-    // __m128 va = _mm_loadu_ps(&a.x);  // Loads 4 floats, but ignore last
-    // __m128 vb = _mm_loadu_ps(&b.x);
-    // __m128 vc = _mm_add_ps(va, vb);
-    // // vc = _mm_blend_ps(vc, _mm_setzero_ps(), 0b1000); // Zero out W
+// void vb_vec3add(vbVec3 *dest, vbVec3 const *a, vbVec3 const *b)
+// {
+// #if defined(__GNUC__)
+//     // dest->v = a->v + b->v;
+//     __m128 va = _mm_loadu_ps(&a.x);  // Loads 4 floats, but ignore last
+//     __m128 vb = _mm_loadu_ps(&b.x);
+//     __m128 vc = _mm_add_ps(va, vb);
+//     vc = _mm_set_ps(vc, _mm_setzero_ps(), 0b1000); // Zero out W
 
-    // _mm_storeu_ps(&dest->x, vc);
-#elif defined(__arm__)
-// TODO : test this out
-    float32x4_t vc = vaddq_f32(vld1q_f32(va), vld1q_f32(vb));
-    vc = vsetq_lane_f32(0, vc, 3); // Zero out W
-    vst1q_f32(result, vc);    
-#else
-        #error unsupported
-#endif
-}
+//     _mm_storeu_ps(&dest->x, vc);
+// #elif defined(__arm__)
+// // TODO : test this out
+//     float32x4_t vc = vaddq_f32(vld1q_f32(va), vld1q_f32(vb));
+//     vc = vsetq_lane_f32(0, vc, 3); // Zero out W
+//     vst1q_f32(result, vc);    
+// #else
+//         #error unsupported
+// #endif
+// }
 
 
-f32 reduce_f32x4(vbVec4 *a)
+f32 reduce4(vbVec4 *a)
 {
 // #if defined(__GNUC__)
         __m128 v = a->mm;
@@ -589,13 +589,22 @@ f32 reduce_f32x4(vbVec4 *a)
 // #endif
 }
 
-f32 vb_dot4(vbVec4 a, vbVec4 b)
+f32 reduce_f32x4(f32x4 v)
 {
-        f32x4 result = a.v * b.v;
+        // TODO (VIVEK) : not entirely if direct access summing or intrinsics are faster
+        // __m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
+        // temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
+        // return _mm_cvtss_f32(temp);  // Convert the result to a scalar
+        return v[0] + v[1] + v[2] + v[3];
+}
+
+f32 dot_f32x4(f32x4 a, f32x4 b)
+{
+        f32x4 result = a * b;
         return result[0] + result[1] + result[2] + result[3];
 }
 
-void vb_cross2(float *dest, vbVec2 a, vbVec2 b) { *dest = a.x*b.y - a.y*b.x; }
+void vb_det2(float *dest, vbVec2 a, vbVec2 b) { *dest = a.x*b.y - a.y*b.x; }
 
 #endif // VB_MATH_IMPLEMENTATION
 
