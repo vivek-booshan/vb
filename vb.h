@@ -183,6 +183,46 @@ VB_STATIC_ASSERT(sizeof(usize) == sizeof(isize));
 #define F64_MIN 2.2250738585072014e-308
 #define F64_MAX 1.7976931348623157e+308
 
+typedef union vbVec2 {
+	struct { float x, y; };
+	float e[2];
+} vbVec2;
+
+typedef union vbVec3 {
+	struct { float x, y, z; };
+	struct { float r, g, b; };
+	// vbVec2 xy;
+	float e[3];
+} vbVec3;
+
+typedef union vbVec4 {
+	struct { float x, y, z, w; };
+	struct { float r, g, b, a; };
+	// struct { vbVec2 xy, zw; };
+	// vbVec3 xyz;
+	// vbVec3 rgb;
+	float e[4];
+} vbVec4;
+
+typedef union vbMat2 {
+	struct { vbVec2 x, y; };
+	vbVec2 col[2];
+	float e[4];
+} vbMat2;
+
+typedef union vbMat3 {
+	struct { vbVec3 x, y, z; };
+	vbVec3 col[3];
+	float e[9];
+} vbMat3;
+
+typedef union vbMat4 {
+	struct { vbVec4 x, y, z, w; };
+	vbVec4 col[4];
+	float e[16];
+} vbMat4;
+
+
 #if !defined(vb_inline)
 #define vb_inline __attribute__ ((__always_inline__))
 #endif
@@ -267,6 +307,28 @@ alignof(i32) // 4
 
 #ifndef VB_GLOBAL
 #define VB_GLOBAL
+/*
+```
+global int count
+
+static inline int increment_counter(void)
+{
+        persistent int count = 0;
+        count ++;
+        return count;
+}
+
+int main(void)
+{
+        increment_counter();
+        increment_counter();
+        increment_counter();
+        increment_counter();
+        count = increment_counter();
+        print("%d\n", count) // prints 5
+}
+```
+*/
 #define global static
 // continue to persist within function scope,
 // useful for something like counting the number
@@ -282,6 +344,60 @@ alignof(i32) // 4
         #define vb_unused(x) ((void)(isizeof(x)))
 #endif
 #endif
+
+#ifndef vb_min
+#define vb_min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+#ifndef vb_max
+#define vb_max(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+#ifndef vb_min3
+#define vb_min3(a, b, c) vb_min(vb_min(a, b), c)
+#endif
+
+#ifndef vb_max3
+#define vb_max3(a, b, c) vb_max(vb_max(a, b), c)
+#endif
+
+#ifndef vb_clamp
+#define vb_clamp(x, lower, upper) vb_min(vb_max((x), (lower)), (upper))
+#endif
+
+#ifndef vb_clamp01
+#define vb_clamp01(x) vb_clamp((x), 0, 1)
+#endif
+
+#ifndef vb_is_between
+#define vb_is_between(x, lower, upper) (((lower) <= (x)) && ((x) <= (upper)))
+#endif
+
+#ifndef vb_abs
+#define vb_abs(x) ((x) < 0 ? -(x) : (x))
+#endif
+
+#ifndef vb_square
+#define vb_square(x) ((x)*(x))
+#endif
+
+#ifndef vb_cube
+#define vb_cube(x) ((x)*(x)*(x))
+#endif
+
+#ifndef vb_abs
+#define vb_abs(x) ((x) > 0 ? (x) : -(x))
+#endif
+
+#ifndef vb_sign
+#define vb_sign(x) ((x) >= 0 ? 1 : -1)
+#endif
+
+extern float vb_deg2rad(float degrees);
+extern float vb_rad2deg(float radians);
+// interpolate between angles
+extern float vb_anglediff(float a_radians, float b_radians);
+
 
 #if defined(__cplusplus)
 }
