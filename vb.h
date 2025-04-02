@@ -558,17 +558,17 @@ f32x4 vb_rsqrt_f32x4(f32x4 x)
 simd addition on vec2
 */
 
+#ifdef VB_CPU_X86
 void vb_vec2add(vbVec2 *dest, vbVec2 a, vbVec2 b)
 {
-#ifdef VB_CPU_X86
-    __m128 va = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&a);
-    __m128 vb = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&b);
-    __m128 vc = _mm_add_ps(va, vb);
+        __m128 va = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&a);
+        __m128 vb = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&b);
+        __m128 vc = _mm_add_ps(va, vb);
 
     _mm_storel_pi((__m64*)&dest, vc);
-#endif
+        // vset_lane_f32(vadd_f32(a, b));
 }
-
+#endif
 
 // void vb_vec3add(vbVec3 *dest, vbVec3 const *a, vbVec3 const *b)
 // {
@@ -602,7 +602,8 @@ f32 reduce4(vbVec4 *a)
         // temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
         // return _mm_cvtss_f32(temp);  // Convert the result to a scalar
 #elif VB_CPU_ARM
-        return vaddvq_f32(a->v);
+        f32 res = vaddvq_f32(a->v);
+        return res;
 #endif
 // #elif defined(__arm__)
 //         f32x4 low = vadd_f32(vget_low_f32(a), vget_high_f32(a)); 
@@ -622,14 +623,11 @@ NOTE (VIVEK) : some not so thorough profiling suggests that scalar addition
 is faster by a decent amount 0.07s for scalar vs 0.1s for simd on 1 million calls
 gcc -pg -ffinite-math-only -ffast-math -O0
 */
-inline f32 reduce_f32x4(f32x4 v)
-{
 #ifdef VB_CPU_X86
-        return v[0] + v[1] + v[2] + v[3];
+        inline f32 reduce_f32x4(f32x4 v) { return v[0] + v[1] + v[2] + v[3]; }
 #elif VB_CPU_ARM
-        return vaddvq_f32(v);
+        f32 reducef32x4(f32x4 v) { return vaddvq_f32(v); }
 #endif
-}
 
 #ifdef VB_CPU_X86
 inline f32 reduce_f32x8(f32x8 v)
