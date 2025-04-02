@@ -105,6 +105,8 @@ extern "C" {
 
 #if defined(VB_CPU_X86)
         #include <xmmintrin.h>
+        #include <immintrin.h>
+        // #include <avxintrin.h>
 #elif defined(VB_CPU_ARM)
         #include <arm_neon.h>
 #endif
@@ -146,6 +148,7 @@ typedef double f64;
         typedef i8 i8x16 __attribute__((vector_size(16)));
         typedef i8 i32x4 __attribute__((vector_size(16)));
         typedef f32 f32x4 __attribute__((vector_size(16)));
+        typedef f32 f32x8 __attribute__((vector_size(32)));
 #endif
 
 typedef size_t usize;
@@ -484,6 +487,11 @@ extern void vb_vec4sub(vbVec4 *d, vbVec4 v0, vbVec4 v1);
 extern void vb_vec4mul(vbVec4 *d, vbVec4 v,  float s);
 extern void vb_vec4div(vbVec4 *d, vbVec4 v,  float s);
 
+extern inline f32 reduce_f32x4(f32x4 v);
+extern inline f32 reduce_f32x8(f32x8 v);
+extern inline f32 dot_f32x4(f32x4 a, f32x4 b);
+extern inline f32 dot_f32x8(f32x8 a, f32x8 b);
+
 #if defined(VB_MATH_IMPLEMENTATION)
 #include <math.h>
 
@@ -589,22 +597,70 @@ f32 reduce4(vbVec4 *a)
 // #endif
 }
 
-f32 reduce_f32x4(f32x4 v)
+/*
+SIMD VERSION
+__m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
+temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
+return _mm_cvtss_f32(temp);  // Convert the result to a scalar
+
+NOTE (VIVEK) : some not so thorough profiling suggests that scalar addition
+is faster by a decent amount 0.07s for scalar vs 0.1s for simd on 1 million calls
+gcc -pg -ffinite-math-only -ffast-math -O0
+*/
+inline f32 reduce_f32x4(f32x4 v)
 {
-        // TODO (VIVEK) : not entirely if direct access summing or intrinsics are faster
-        // __m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
-        // temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
-        // return _mm_cvtss_f32(temp);  // Convert the result to a scalar
         return v[0] + v[1] + v[2] + v[3];
 }
 
-f32 dot_f32x4(f32x4 a, f32x4 b)
+inline f32 reduce_f32x8(f32x8 v)
+{
+        return v[0] + v[1] + v[2] + v[3] +
+               v[4] + v[5] + v[6] + v[7];
+}
+
+inline f32 dot_f32x4(f32x4 a, f32x4 b)
 {
         f32x4 result = a * b;
         return result[0] + result[1] + result[2] + result[3];
 }
 
-void vb_det2(float *dest, vbVec2 a, vbVec2 b) { *dest = a.x*b.y - a.y*b.x; }
+inline f32 dot_f32x8(f32x8 a, f32x8 b)
+{
+        f32x8 result = a * b;
+        return result[0] + result[1] + result[2] + result[3] +
+               result[4] + result[5] + result[6] + result[7];
+}
+
+void squared_dist_f32x8(
+        const float *x, const float *y, const float *z,
+        float x0, float y0, float z0,
+        float *dist2,
+        int num_particles)
+{
+        f32x8 X0 = (f32x8){x0, x0, x0, x0, x0, x0, x0, x0}; 
+        f32x8 Y0 = (f32x8){y0, y0, y0, y0, y0, y0, y0, y0}; 
+        f32x8 Z0 = (f32x8){z0, z0, z0, z0, z0, z0, z0, z0}; 
+
+        for (int i = 0; i < num_particles; i+=8) {
+                f32x8 X = *(f32x8*)&x[i];
+                f32x8 Y = *(f32x8*)&y[i];
+                f32x8 Z = *(f32x8*)&z[i];
+
+                f32x8 dx = X - X0;
+                f32x8 dy = Y - Y0;
+                f32x8 dz = Z - Z0;
+
+                dx *= dx;
+                dy *= dy;
+                dz *= dz;
+
+                f32x8 dist = dx + dy + dz;
+                *(f32x8 *)&dist2[i] = dist;
+                // _mm256_storeu_ps(&dist2[i], dist);
+        }
+}
+
+// void vb_det2(float *dest, vbVec2 a, vbVec2 b) { *dest = a.x*b.y - a.y*b.x; }
 
 #endif // VB_MATH_IMPLEMENTATION
 
