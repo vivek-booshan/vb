@@ -1,7 +1,7 @@
 // gcc something.c -o something -fsanitize=address -Wall -Wextra -pedantic -march=native -O1
 #include <mm_malloc.h>
 #include <stdio.h>
-#include <immintrin.h>
+// #include <immintrin.h>
 #define VB_MATH_IMPLEMENTATION
 #include "vb.h"
 
@@ -41,7 +41,7 @@ void squared_dist(
 
 }
 
-int main()
+int main(void)
 {
         const int N = 1024;
         // float x[N], y[N], z[N], dist[N], dist2[N];
@@ -62,16 +62,16 @@ int main()
         x0 = 5.0f; y0 = 10.0f; z0 = 15.0f;
 
         squared_dist(x, y, z, x0, y0, z0, dist, N);
-        squared_dist_f32x8(x, y, z, x0, y0, z0, dist2, N);
+        squared_dist_f32x4(x, y, z, x0, y0, z0, dist2, N);
 
         for (int i = 0; i < 1024; i++) {
                 printf("%f\n", dist2[i]);
         }
 
-        free(x);
-        free(y);
-        free(z);
-        free(dist);
-        free(dist2);
+        _mm_free(x);
+        _mm_free(y);
+        _mm_free(z);
+        _mm_free(dist);
+        _mm_free(dist2);
 }
 
