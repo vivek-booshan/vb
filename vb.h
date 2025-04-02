@@ -59,7 +59,7 @@ extern "C" {
         #define VB_CACHE_LINE_SIZE 64
         #endif
 
-#elif defined(__arm__)
+#elif defined(__arm__) || defined(__aarch64__)
         #ifndef VB_CPU_ARM
         #define VB_CPU_ARM 1
         #endif
@@ -142,13 +142,18 @@ typedef int64_t  i64;
 typedef float  f32;
 typedef double f64;
 
-#if defined(__GNUC__)
+#if defined(VB_CPU_X86) && defined(__GNUC__)
         typedef u8 u8x16 __attribute__((vector_size(16)));
         typedef u8 u32x4 __attribute__((vector_size(16)));
         typedef i8 i8x16 __attribute__((vector_size(16)));
         typedef i8 i32x4 __attribute__((vector_size(16)));
         typedef f32 f32x4 __attribute__((vector_size(16)));
         typedef f32 f32x8 __attribute__((vector_size(32)));
+#elif defined (VB_CPU_ARM)
+// i believe this assumes aarch-64 arm
+        typedef uint8x16_t u8x16;
+        typedef float32x4_t f32x4;
+        typedef float32x4x2_t f32x8;
 #endif
 
 typedef size_t usize;
@@ -245,8 +250,9 @@ typedef union vbVec4 {
 	// vbVec3 xyz;
 	// vbVec3 rgb;
 	f32 e[4];
-#if defined(__GNUC__)
+// #if defined(__GNUC__)
   f32x4 v;
+#ifdef VB_CPU_X86
   __m128 mm;
 #endif
 } vbVec4;
@@ -525,24 +531,24 @@ performs sqrt on a single f32 using simd instructions.
 I am honestly not too sure if this is faster than just using sqrt(x)
 so just use that ig
 */
-float vb_sqrtf32(f32 x)
+f32x4 vb_sqrt_f32x4(f32x4 x)
 {
 #ifdef VB_CPU_X86
-        return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(x)));
+        return _mm_sqrt_ss(_mm_set_ss(x));
 #elif VB_CPU_ARM
-        return vsqrt_f32(x);
+        return vsqrtq_f32(x);
         // vgetq_lane_f32(vsqrtq_f32(vdupq_n_f32(x)));
 #else
         #error unsupported arch
 #endif
 }
 
-float vb_rsqrtf32(f32 x)
+f32x4 vb_rsqrt_f32x4(f32x4 x)
 {
 #ifdef VB_CPU_X86
-        return _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x)));
+        return _mm_rsqrt_ss(_mm_set_ss(x));
 #elif VB_CPU_ARM
-        return vrsqrte_f32(x);
+        return vrsqrteq_f32(x);
 #else
         #error unsupported arch
 #endif
@@ -551,13 +557,16 @@ float vb_rsqrtf32(f32 x)
 /*
 simd addition on vec2
 */
+
 void vb_vec2add(vbVec2 *dest, vbVec2 a, vbVec2 b)
 {
+#ifdef VB_CPU_X86
     __m128 va = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&a);
     __m128 vb = _mm_loadl_pi(_mm_setzero_ps(), (__m64*)&b);
     __m128 vc = _mm_add_ps(va, vb);
 
     _mm_storel_pi((__m64*)&dest, vc);
+#endif
 }
 
 
@@ -585,10 +594,16 @@ void vb_vec2add(vbVec2 *dest, vbVec2 a, vbVec2 b)
 f32 reduce4(vbVec4 *a)
 {
 // #if defined(__GNUC__)
-        __m128 v = a->mm;
-        __m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
-        temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
-        return _mm_cvtss_f32(temp);  // Convert the result to a scalar
+#ifdef VB_CPU_X86
+        f32x4 __a = a->v;
+        return __a[0] + __a[1] + __a[2] + __a[3];
+        // __m128 v = a->mm;
+        // __m128 temp = _mm_add_ps(v, _mm_movehl_ps(v, v));  // Add upper and lower halves of the vector
+        // temp = _mm_add_ps(temp, _mm_shuffle_ps(temp, temp, 1));  // Final horizontal addition
+        // return _mm_cvtss_f32(temp);  // Convert the result to a scalar
+#elif VB_CPU_ARM
+        return vaddvq_f32(a->v);
+#endif
 // #elif defined(__arm__)
 //         f32x4 low = vadd_f32(vget_low_f32(a), vget_high_f32(a)); 
 //         return vget_lane_f32(low, 0) + vget_lane_f32(low, 1);
@@ -609,14 +624,20 @@ gcc -pg -ffinite-math-only -ffast-math -O0
 */
 inline f32 reduce_f32x4(f32x4 v)
 {
+#ifdef VB_CPU_X86
         return v[0] + v[1] + v[2] + v[3];
+#elif VB_CPU_ARM
+        return vaddvq_f32(v);
+#endif
 }
 
+#ifdef VB_CPU_X86
 inline f32 reduce_f32x8(f32x8 v)
 {
         return v[0] + v[1] + v[2] + v[3] +
                v[4] + v[5] + v[6] + v[7];
 }
+#endif
 
 inline f32 dot_f32x4(f32x4 a, f32x4 b)
 {
@@ -626,11 +647,20 @@ inline f32 dot_f32x4(f32x4 a, f32x4 b)
 
 inline f32 dot_f32x8(f32x8 a, f32x8 b)
 {
+#if VB_CPU_X86
         f32x8 result = a * b;
         return result[0] + result[1] + result[2] + result[3] +
                result[4] + result[5] + result[6] + result[7];
+#elif VB_CPU_ARM
+        f32x4 r1 = a.val[0] * b.val[0];
+        f32x4 r2 = a.val[1] * b.val[1];
+        return r1[0] + r1[1] + r1[2] + r1[3] +
+               r2[0] + r2[1] + r2[2] + r2[3];
+
+#endif
 }
 
+#if VB_CPU_X86
 void squared_dist_f32x8(
         const float *x, const float *y, const float *z,
         float x0, float y0, float z0,
@@ -656,6 +686,36 @@ void squared_dist_f32x8(
 
                 f32x8 dist = dx + dy + dz;
                 *(f32x8 *)&dist2[i] = dist;
+                // _mm256_storeu_ps(&dist2[i], dist);
+        }
+}
+#endif
+
+void squared_dist_f32x4(
+        const float *x, const float *y, const float *z,
+        float x0, float y0, float z0,
+        float *dist2,
+        int num_particles)
+{
+        f32x4 X0 = (f32x4){x0, x0, x0, x0};
+        f32x4 Y0 = (f32x4){y0, y0, y0, y0};
+        f32x4 Z0 = (f32x4){z0, z0, z0, z0};
+
+        for (int i = 0; i < num_particles; i+=4) {
+                f32x4 X = *(f32x4*)&x[i];
+                f32x4 Y = *(f32x4*)&y[i];
+                f32x4 Z = *(f32x4*)&z[i];
+
+                f32x4 dx = X - X0;
+                f32x4 dy = Y - Y0;
+                f32x4 dz = Z - Z0;
+
+                dx *= dx;
+                dy *= dy;
+                dz *= dz;
+
+                f32x4 dist = dx + dy + dz;
+                *(f32x4 *)&dist2[i] = dist;
                 // _mm256_storeu_ps(&dist2[i], dist);
         }
 }
