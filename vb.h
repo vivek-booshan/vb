@@ -143,17 +143,20 @@ typedef float  f32;
 typedef double f64;
 
 #if defined(VB_CPU_X86) && defined(__GNUC__)
-        typedef u8 u8x16 __attribute__((vector_size(16)));
-        typedef u8 u32x4 __attribute__((vector_size(16)));
-        typedef i8 i8x16 __attribute__((vector_size(16)));
-        typedef i8 i32x4 __attribute__((vector_size(16)));
-        typedef f32 f32x4 __attribute__((vector_size(16)));
-        typedef f32 f32x8 __attribute__((vector_size(32)));
+        typedef u8 u8x16 __attribute__((vector_size(16), aligned(16)));
+        typedef u8 u32x4 __attribute__((vector_size(16), aligned(16)));
+        typedef i8 i8x16 __attribute__((vector_size(16), aligned(16)));
+        typedef i8 i32x4 __attribute__((vector_size(16), aligned(16)));
+        typedef f32 f32x4 __attribute__((vector_size(16), aligned(16)));
+        typedef f32 f32x8 __attribute__((vector_size(32), aligned(32)));
+#ifdef __AVX512__
+        typedef f32 f32x16 __attribute__((vector_size(64), aligned(64)));
+#endif
+
 #elif defined (VB_CPU_ARM)
 // i believe this assumes aarch-64 arm
         typedef uint8x16_t u8x16;
         typedef float32x4_t f32x4;
-        typedef float32x4x2_t f32x8;
 #endif
 
 typedef size_t usize;
@@ -495,6 +498,9 @@ extern void vb_vec4div(vbVec4 *d, vbVec4 v,  float s);
 
 extern inline f32 reduce_f32x4(f32x4 v);
 extern inline f32 reduce_f32x8(f32x8 v);
+#ifdef __AVX512__
+extern inline f32 reduce_f32x16(f32x16 v);
+#endif
 extern inline f32 dot_f32x4(f32x4 a, f32x4 b);
 extern inline f32 dot_f32x8(f32x8 a, f32x8 b);
 
@@ -624,17 +630,20 @@ is faster by a decent amount 0.07s for scalar vs 0.1s for simd on 1 million call
 gcc -pg -ffinite-math-only -ffast-math -O0
 */
 #ifdef VB_CPU_X86
-        inline f32 reduce_f32x4(f32x4 v) { return v[0] + v[1] + v[2] + v[3]; }
-#elif VB_CPU_ARM
-        f32 reducef32x4(f32x4 v) { return vaddvq_f32(v); }
-#endif
 
-#ifdef VB_CPU_X86
+inline f32 reduce_f32x4(f32x4 v) {
+        return v[0] + v[1] + v[2] + v[3];
+}
+
 inline f32 reduce_f32x8(f32x8 v)
 {
         return v[0] + v[1] + v[2] + v[3] +
                v[4] + v[5] + v[6] + v[7];
 }
+
+
+#elif VB_CPU_ARM
+        f32 reducef32x4(f32x4 v) { return vaddvq_f32(v); }
 #endif
 
 inline f32 dot_f32x4(f32x4 a, f32x4 b)
