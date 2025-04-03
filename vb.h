@@ -534,7 +534,7 @@ so just use that ig
 f32x4 vb_sqrt_f32x4(f32x4 x)
 {
 #ifdef VB_CPU_X86
-        return _mm_sqrt_ss(x);
+        return _mm_sqrt_ps(x);
 #elif VB_CPU_ARM
         return vsqrtq_f32(x);
         // vgetq_lane_f32(vsqrtq_f32(vdupq_n_f32(x)));
@@ -546,7 +546,7 @@ f32x4 vb_sqrt_f32x4(f32x4 x)
 f32x4 vb_rsqrt_f32x4(f32x4 x)
 {
 #ifdef VB_CPU_X86
-        return _mm_rsqrt_ss(x);
+        return _mm_rsqrt_ps(x);
 #elif VB_CPU_ARM
         return vrsqrteq_f32(x);
 #else
